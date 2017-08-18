@@ -154,7 +154,7 @@ def np_comparison_check(h2o_data, np_data, num_elements):
         assert np.absolute(h2o_val - np_val) < 1e-5, \
             "failed comparison check! h2o computed {0} and numpy computed {1}".format(h2o_val, np_val)
 
-def javapredict(algo, equality, train, test, x, y, compile_only=False, separator=",", setInvNumNA=False,**kwargs):
+def javapredict(algo, equality, train, test, x, y, compile_only=False, separator=",", setInvNumNA=False, pojo_model=True, **kwargs):
     print("Creating model in H2O")
     if algo == "gbm": model = H2OGradientBoostingEstimator(**kwargs)
     elif algo == "random_forest": model = H2ORandomForestEstimator(**kwargs)
@@ -176,7 +176,11 @@ def javapredict(algo, equality, train, test, x, y, compile_only=False, separator
     print("Downloading Java prediction model code from H2O")
     tmpdir = os.path.normpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "results", pojoname))
     os.makedirs(tmpdir)
-    h2o.download_pojo(model, path=tmpdir)
+    if pojo_model:
+        h2o.download_pojo(model, path=tmpdir)
+    else:
+        h2o.download_mojo(model, path=tmpdir)
+
     h2o_genmodel_jar = os.path.join(tmpdir, "h2o-genmodel.jar")
     assert os.path.exists(h2o_genmodel_jar), "Expected file {0} to exist, but it does not.".format(h2o_genmodel_jar)
     print("h2o-genmodel.jar saved in {0}".format(h2o_genmodel_jar))
@@ -184,7 +188,7 @@ def javapredict(algo, equality, train, test, x, y, compile_only=False, separator
     assert os.path.exists(java_file), "Expected file {0} to exist, but it does not.".format(java_file)
     print("java code saved in {0}".format(java_file))
 
-    print("Compiling Java Pojo")
+    print("Compiling Java Pojo/Mojo")
     javac_cmd = ["javac", "-cp", h2o_genmodel_jar, "-J-Xmx12g", "-J-XX:MaxPermSize=256m", java_file]
     subprocess.check_call(javac_cmd)
 
@@ -219,7 +223,7 @@ def javapredict(algo, equality, train, test, x, y, compile_only=False, separator
         cp_sep = ";" if sys.platform == "win32" else ":"
         java_cmd = ["java", "-ea", "-cp", h2o_genmodel_jar + cp_sep + tmpdir, "-Xmx12g", "-XX:MaxPermSize=2g",
                     "-XX:ReservedCodeCacheSize=256m", "hex.genmodel.tools.PredictCsv",
-                    "--pojo", pojoname, "--input", in_csv, "--output", out_pojo_csv, "--separator", separator]
+                    "--model", pojoname, "--input", in_csv, "--output", out_pojo_csv, "--separator", separator]
         if setInvNumNA:
             java_cmd.append("--setConvertInvalidNum")
         p = subprocess.Popen(java_cmd, stdout=PIPE, stderr=STDOUT)
