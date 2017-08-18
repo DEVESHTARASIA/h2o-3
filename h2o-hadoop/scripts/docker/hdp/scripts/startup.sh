@@ -35,8 +35,7 @@ if [[ $(echo ${RUN_TESTS} | tr -s '[:upper:]' '[:lower:]') == 'true' ]]; then
     total=$(($total + 1))
     echo
     echo "####### Running test file ${x} #######"
-    bash
-    unset e
+    set +e
     python ${x}
     set -e
     if [ $? -ne 0 ]; then
@@ -57,6 +56,7 @@ if [[ $(echo ${RUN_TESTS} | tr -s '[:upper:]' '[:lower:]') == 'true' ]]; then
 fi
 
 if [[ $(echo ${ENTER_BASH} | tr -s '[:upper:]' '[:lower:]') == 'true' ]]; then
+  cd /home/h2o
   /bin/bash
 fi
 

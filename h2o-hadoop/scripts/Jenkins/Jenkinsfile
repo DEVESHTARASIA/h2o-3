@@ -26,7 +26,8 @@ pipeline {
     ansiColor('xterm')
     timestamps()
     timeout(time: 60, unit: 'MINUTES')
-    buildDiscarder(logRotator(numToKeepStr: '10'))
+    // lets keep 11 logs, because currently we test against 11 various hadoop versions
+    buildDiscarder(logRotator(numToKeepStr: '11'))
   }
 
   stages {
@@ -35,7 +36,7 @@ pipeline {
         dockerfile {
           label "mr-0xc10"
           filename "h2o-hadoop/scripts/docker/${params.distribution}/Dockerfile"
-          additionalBuildArgs "--build-arg VERSION=${params.version}"
+          additionalBuildArgs "--build-arg VERSION=${params.version} --build-arg PATH_TO_DOCKER_DIR=h2o-hadoop/scripts/docker/${params.distribution}/"
           args "-u root -v \${WORKSPACE}/h2o-hadoop/tests:/home/h2o/tests"
           reuseNode true
         }

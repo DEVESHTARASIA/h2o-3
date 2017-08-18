@@ -7,11 +7,11 @@ if [[ $(echo ${INIT_H2O} | tr -s '[:upper:]' '[:lower:]') == 'true' ]]; then
 
   cd /home/h2o
   echo "Downloading H2O for ${VERSION} with build ID ${NIGHTLY_BUILD_ID}"
-  sudo -u h2o wget -q http://h2o-release.s3.amazonaws.com/h2o/master/${NIGHTLY_BUILD_ID}/h2o-3.15.0.${NIGHTLY_BUILD_ID}-hdp${VERSION}.zip
+  sudo -u h2o wget http://h2o-release.s3.amazonaws.com/h2o/master/${NIGHTLY_BUILD_ID}/h2o-3.15.0.${NIGHTLY_BUILD_ID}-hdp${VERSION}.zip
   sudo -u h2o unzip h2o*.zip
   sudo -u h2o rm h2o*.zip
   cd h2o-*
-  sudo -u h2o hadoop jar h2odriver.jar -nodes 1 -mapperXmx 1g -output jenkins_tests -disown
+  su - h2o -c 'hadoop jar h2o-*/h2odriver.jar -nodes 1 -mapperXmx 1g -output jenkins_tests -disown'
   cd python
   pip install h2o-*.whl
 fi

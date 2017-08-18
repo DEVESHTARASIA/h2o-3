@@ -65,6 +65,7 @@ else
 fi
 
 if [[ $(echo ${ENTER_BASH} | tr -s '[:upper:]' '[:lower:]') == 'true' ]]; then
+  cd /home/h2o
   /bin/bash
 fi
 

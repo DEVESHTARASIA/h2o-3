@@ -4,41 +4,74 @@ WORKDIR /
 
 ARG VERSION
 
-COPY scripts/add_hdp_repo.sh /usr/sbin/add_hdp_repo.sh
+ARG PATH_TO_DOCKER_DIR=''
+
+# Add HDP repository
+COPY ${PATH_TO_DOCKER_DIR}scripts/add_hdp_repo.sh /usr/sbin/add_hdp_repo.sh
 RUN chmod 700 /usr/sbin/add_hdp_repo.sh
 RUN /usr/sbin/add_hdp_repo.sh $VERSION
 
+# Install HDP and required packages
 RUN apt-get install -y hadoop-conf-pseudo python-dev python-pip python-scipy
 RUN pip install requests --upgrade
 RUN pip install colorama future tabulate pandas
 
-COPY conf/hadoop-env.sh /etc/hadoop/conf/hadoop-env.sh
-COPY conf/core-site.xml /etc/hadoop/conf/core-site.xml
-
-RUN hadoop namenode -format -force
-
-EXPOSE 54321
-
+# create h2o user
 RUN useradd -ms /bin/bash h2o
 
-COPY "scripts/hdfs_start" "/etc/startup/00_hdfs_start"
+# Copy configs
+COPY ${PATH_TO_DOCKER_DIR}conf/hadoop-env.sh /etc/hadoop/conf/hadoop-env.sh
+COPY ${PATH_TO_DOCKER_DIR}conf/core-site.xml /etc/hadoop/conf/core-site.xml
+
+# Chown folders
+RUN chown hdfs:hdfs /usr/hdp/2*/hadoop
+RUN chown yarn:yarn /usr/hdp/2*/hadoop-yarn
+RUN chown yarn:yarn /usr/hdp/2*/hadoop-mapreduce
+RUN chown -R root:hadoop /usr/hdp/current/hadoop-yarn*/bin/container-executor
+RUN chmod -R 6050 /usr/hdp/current/hadoop-yarn*/bin/container-executor
+
+# Export required ENV variables
+ENV YARN_DAEMON /usr/hdp/2*/hadoop-yarn/sbin/yarn-daemon.sh
+ENV HADOOP_CONF_DIR /usr/hdp/2*/hadoop/conf/
+ENV MAPRED_USER mapred
+ENV YARN_USER yarn
+ENV HDFS_USER hdfs
+
+# Copy conf.pseudo to hadoop conf folder
+RUN rm /usr/hdp/2*/hadoop/conf/*
+RUN cp /usr/hdp/2*/etc/hadoop/conf.pseudo/* /usr/hdp/2*/hadoop/conf/
+
+# Generate mapred-site.xml
+COPY ${PATH_TO_DOCKER_DIR}scripts/generate-mapred-site /usr/sbin/generate-mapred-site
+RUN chmod +x /usr/sbin/generate-mapred-site
+RUN /usr/sbin/generate-mapred-site
+RUN rm /usr/sbin/generate-mapred-site
+
+# Generate yarn-site.xml
+COPY ${PATH_TO_DOCKER_DIR}scripts/generate-yarn-site /usr/sbin/generate-yarn-site
+RUN chmod +x /usr/sbin/generate-yarn-site
+RUN /usr/sbin/generate-yarn-site
+RUN rm /usr/sbin/generate-yarn-site
+
+# Generate format namenode
+RUN su - hdfs -c "/usr/hdp/current/hadoop-hdfs-namenode/../hadoop/bin/hdfs namenode -format"
+
+# Copy startup scripts
+COPY ${PATH_TO_DOCKER_DIR}scripts/hdfs_start /etc/startup/00_hdfs_start
 RUN chmod 700 "/etc/startup/00_hdfs_start"
-
-COPY "scripts/hdfs_setup" "/etc/startup/10_hdfs_setup"
+COPY ${PATH_TO_DOCKER_DIR}scripts/hdfs_setup /etc/startup/10_hdfs_setup
 RUN chmod 700 "/etc/startup/10_hdfs_setup"
-
-COPY "scripts/hdfs_create_h2o_home" "/etc/startup/20_hdfs_create_h2o_home"
+COPY ${PATH_TO_DOCKER_DIR}scripts/hdfs_create_h2o_home /etc/startup/20_hdfs_create_h2o_home
 RUN chmod 700 "/etc/startup/20_hdfs_create_h2o_home"
-
-COPY "scripts/yarn_start" "/etc/startup/30_yarn_start"
+COPY ${PATH_TO_DOCKER_DIR}scripts/yarn_start /etc/startup/30_yarn_start
 RUN chmod 700 "/etc/startup/30_yarn_start"
-
-COPY "scripts/init_h2o" "/etc/startup/40_init_h2o"
+COPY ${PATH_TO_DOCKER_DIR}scripts/init_h2o /etc/startup/40_init_h2o
 RUN chmod 700 "/etc/startup/40_init_h2o"
-
-COPY "scripts/startup.sh" "/usr/bin/startup.sh"
+COPY ${PATH_TO_DOCKER_DIR}scripts/startup.sh /usr/bin/startup.sh
 RUN chmod +x /usr/bin/startup.sh
 
+
+# Expose H2O and Hadoop UI ports
 # H2O
 EXPOSE 54321
 # HADOOP UI
@@ -48,6 +81,5 @@ ENV VERSION $VERSION
 ENV INIT_H2O TRUE
 ENV RUN_TESTS TRUE
 ENV ENTER_BASH FALSE
-
 
 CMD "/usr/bin/startup.sh"
