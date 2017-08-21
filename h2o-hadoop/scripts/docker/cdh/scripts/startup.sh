@@ -39,7 +39,7 @@ if [[ $(echo ${RUN_TESTS} | tr -s '[:upper:]' '[:lower:]') == 'true' ]]; then
       total=$(($total + 1))
       echo
       echo "####### Running test file ${x} #######"
-      unset e
+      set +e
       sudo -u h2o python ${x}
       set -e
       if [ $? -ne 0 ]; then
