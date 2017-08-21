@@ -179,7 +179,8 @@ def javapredict(algo, equality, train, test, x, y, compile_only=False, separator
     if pojo_model:
         h2o.download_pojo(model, path=tmpdir)
     else:
-        h2o.download_mojo(model, path=tmpdir)
+        model.download_mojo(path=tmpdir)
+        #h2o.download_mojo(model, path=tmpdir)
 
     h2o_genmodel_jar = os.path.join(tmpdir, "h2o-genmodel.jar")
     assert os.path.exists(h2o_genmodel_jar), "Expected file {0} to exist, but it does not.".format(h2o_genmodel_jar)
@@ -188,9 +189,11 @@ def javapredict(algo, equality, train, test, x, y, compile_only=False, separator
     assert os.path.exists(java_file), "Expected file {0} to exist, but it does not.".format(java_file)
     print("java code saved in {0}".format(java_file))
 
-    print("Compiling Java Pojo/Mojo")
-    javac_cmd = ["javac", "-cp", h2o_genmodel_jar, "-J-Xmx12g", "-J-XX:MaxPermSize=256m", java_file]
-    subprocess.check_call(javac_cmd)
+    # only need to compile for pojo
+    if (pojo_model):
+        print("Compiling Java Pojo/Mojo")
+        javac_cmd = ["javac", "-cp", h2o_genmodel_jar, "-J-Xmx12g", "-J-XX:MaxPermSize=256m", java_file]
+        subprocess.check_call(javac_cmd)
 
     if not compile_only:
         print("Predicting in H2O")
