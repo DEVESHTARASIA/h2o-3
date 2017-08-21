@@ -104,6 +104,9 @@ public class StackedEnsembleModel extends Model<StackedEnsembleModel,StackedEnse
       // TODO: parallel scoring for the base_models
       BigScore baseBs = (BigScore) base.makeBigScoreTask(domains, names, adaptedFrame, computeMetrics, true, j).doAll(names.length, Vec.T_NUM, adaptedFrame);
       Frame basePreds = baseBs.outputFrame(Key.<Frame>make("preds_base_" + this._key.toString() + fr._key), names, domains);
+      if(base._output.isMultinomialClassifier()){
+        basePreds.remove("predict");
+      }
       base_prediction_frames[baseIdx] = basePreds;
       StackedEnsemble.addModelPredictionsToLevelOneFrame(base, basePreds, levelOneFrame);
       DKV.remove(basePreds._key); //Cleanup

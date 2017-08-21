@@ -41,7 +41,7 @@ public class StackedEnsemble extends ModelBuilder<StackedEnsembleModel,StackedEn
     return new ModelCategory[]{
             ModelCategory.Regression,
             ModelCategory.Binomial,
-         //   ModelCategory.Multinomial, // TODO
+            ModelCategory.Multinomial
     };
   }
 
@@ -56,8 +56,11 @@ public class StackedEnsemble extends ModelBuilder<StackedEnsembleModel,StackedEn
       // GLM uses a different column name than the other algos, yay!
       Vec preds = aModelsPredictions.vec(2); // Predictions column names have been changed. . .
       levelOneFrame.add(aModel._key.toString(), preds);
-    } else if (aModel._output.isClassifier()) {
-      throw new H2OIllegalArgumentException("Don't yet know how to stack multinomial classifiers: " + aModel._key);
+    } else if(aModel._output.isMultinomialClassifier()){ //Multinomial
+        Vec[] preds = aModelsPredictions.vecs();
+        for(Vec v:preds) {
+            levelOneFrame.add(aModel._key.toString()+v._key, v);
+        }
     } else if (aModel._output.isAutoencoder()) {
       throw new H2OIllegalArgumentException("Don't yet know how to stack autoencoders: " + aModel._key);
     } else if (!aModel._output.isSupervised()) {
@@ -140,11 +143,18 @@ public class StackedEnsemble extends ModelBuilder<StackedEnsembleModel,StackedEn
           throw new H2OIllegalArgumentException("Failed to find the xval predictions frame id. . .  Looks like keep_cross_validation_predictions wasn't set when building the models.");
 
         Frame aFrame = DKV.getGet(aModel._output._cross_validation_holdout_predictions_frame_id);
+
         if (null == aFrame)
           throw new H2OIllegalArgumentException("Failed to find the xval predictions frame. . .  Looks like keep_cross_validation_predictions wasn't set when building the models, or the frame was deleted.");
 
         baseModels.add(aModel);
-        baseModelPredictions.add(aFrame);
+        if(!aModel._output.isMultinomialClassifier()){
+            baseModelPredictions.add(aFrame);
+        }else {
+            //Remove first column of aFrame if multinomial as it contains the actual predictions
+            aFrame.remove("predict");
+            baseModelPredictions.add(aFrame);
+        }
       }
 
       return prepareLevelOneFrame(levelOneKey, baseModels.toArray(new Model[0]), baseModelPredictions.toArray(new Frame[0]), _model._parms.train());
@@ -217,9 +227,16 @@ public class StackedEnsemble extends ModelBuilder<StackedEnsembleModel,StackedEn
       metaBuilder._parms._train = levelOneTrainingFrame._key;
       metaBuilder._parms._valid = (levelOneValidationFrame == null ? null : levelOneValidationFrame._key);
       metaBuilder._parms._response_column = _model.responseColumn;
-      // TODO: multinomial
-      // TODO: support other families for regression
-      metaBuilder._parms._family = _model.modelCategory == ModelCategory.Regression ? GLMModel.GLMParameters.Family.gaussian : GLMModel.GLMParameters.Family.binomial;
+
+      if(_model.modelCategory == ModelCategory.Regression){
+          metaBuilder._parms._family = GLMModel.GLMParameters.Family.gaussian;
+      }else if(_model.modelCategory == ModelCategory.Binomial){
+          metaBuilder._parms._family = GLMModel.GLMParameters.Family.binomial;
+      }else if(_model.modelCategory == ModelCategory.Multinomial){
+          metaBuilder._parms._family = GLMModel.GLMParameters.Family.multinomial;
+      }else{
+          throw new H2OIllegalArgumentException("Family " + _model.modelCategory + "is not supported.");
+      }
 
       metaBuilder.init(false);
 
