@@ -1,5 +1,6 @@
 package hex.genmodel;
 
+import hex.genmodel.algos.deeplearning.DeeplearningMojoReader;
 import hex.genmodel.algos.deepwater.DeepwaterMojoReader;
 import hex.genmodel.algos.drf.DrfMojoReader;
 import hex.genmodel.algos.gbm.GbmMojoReader;
@@ -8,6 +9,7 @@ import hex.genmodel.algos.glrm.GlrmMojoReader;
 import hex.genmodel.algos.kmeans.KMeansMojoReader;
 import hex.genmodel.algos.svm.SvmMojoReader;
 import hex.genmodel.algos.word2vec.Word2VecMojoReader;
+
 import java.util.ServiceLoader;
 
 /**
@@ -69,8 +71,8 @@ public class ModelMojoFactory {
 
       case "K-means":
         return new KMeansMojoReader();
-/*      case "Deep Learning":
-        return new DeeplearningMojoReader();*/
+      case "Deep Learning":
+        return new DeeplearningMojoReader();
 
       case "Support Vector Machine (*Spark*)":
         return new SvmMojoReader();

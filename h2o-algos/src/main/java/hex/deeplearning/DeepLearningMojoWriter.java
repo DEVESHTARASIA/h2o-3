@@ -3,6 +3,8 @@ package hex.deeplearning;
 import hex.ModelMojoWriter;
 import java.io.IOException;
 
+import static water.H2O.technote;
+
 public class DeepLearningMojoWriter extends ModelMojoWriter<DeepLearningModel,
         DeepLearningModel.DeepLearningParameters, DeepLearningModel.DeepLearningModelOutput> {
 
@@ -17,6 +19,10 @@ public class DeepLearningMojoWriter extends ModelMojoWriter<DeepLearningModel,
     _parms = model.get_params();
     _model_info = model.model_info();
     _output = model._output;
+    if (_model_info.isUnstable()) {
+      throw new UnsupportedOperationException(technote(4, "Refusing to create a MOJO for an unstable model."));
+    }
+
   }
 
   @Override
