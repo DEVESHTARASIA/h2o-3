@@ -182,15 +182,16 @@ def javapredict(algo, equality, train, test, x, y, compile_only=False, separator
         model.download_mojo(path=tmpdir)
         #h2o.download_mojo(model, path=tmpdir)
 
-    h2o_genmodel_jar = os.path.join(tmpdir, "h2o-genmodel.jar")
-    assert os.path.exists(h2o_genmodel_jar), "Expected file {0} to exist, but it does not.".format(h2o_genmodel_jar)
-    print("h2o-genmodel.jar saved in {0}".format(h2o_genmodel_jar))
-    java_file = os.path.join(tmpdir, pojoname + ".java")
-    assert os.path.exists(java_file), "Expected file {0} to exist, but it does not.".format(java_file)
-    print("java code saved in {0}".format(java_file))
-
     # only need to compile for pojo
     if (pojo_model):
+        h2o_genmodel_jar = os.path.join(tmpdir, "h2o-genmodel.jar")
+        assert os.path.exists(h2o_genmodel_jar), "Expected file {0} to exist, but it does not.".format(h2o_genmodel_jar)
+        print("h2o-genmodel.jar saved in {0}".format(h2o_genmodel_jar))
+        java_file = os.path.join(tmpdir, pojoname + ".java")
+        assert os.path.exists(java_file), "Expected file {0} to exist, but it does not.".format(java_file)
+        print("java code saved in {0}".format(java_file))
+
+
         print("Compiling Java Pojo/Mojo")
         javac_cmd = ["javac", "-cp", h2o_genmodel_jar, "-J-Xmx12g", "-J-XX:MaxPermSize=256m", java_file]
         subprocess.check_call(javac_cmd)
@@ -224,37 +225,48 @@ def javapredict(algo, equality, train, test, x, y, compile_only=False, separator
         print("Running PredictCsv Java Program")
         out_pojo_csv = os.path.join(tmpdir, "out_pojo.csv")
         cp_sep = ";" if sys.platform == "win32" else ":"
+        if not(pojo_model):
+            utilFileDir = os.path.dirname(os.path.realpath(__file__))
+            genmodelJar = "h2o-assemblies/genmodel/build/libs/genmodel.jar"
+            h2o_genmodel_jar = os.path.normpath(os.path.join(utilFileDir, "../../..", genmodelJar))
+            # java_cmd = ["java", "-ea", "-cp", h2o_genmodel_jar + cp_sep + tmpdir, "-Xmx12g", "-XX:MaxPermSize=2g",
+            #             "-XX:ReservedCodeCacheSize=256m", "hex.genmodel.tools.PredictCsv",
+            #             "--model", pojoname, "--input", in_csv, "--output", out_pojo_csv, "--separator", separator]
         java_cmd = ["java", "-ea", "-cp", h2o_genmodel_jar + cp_sep + tmpdir, "-Xmx12g", "-XX:MaxPermSize=2g",
-                    "-XX:ReservedCodeCacheSize=256m", "hex.genmodel.tools.PredictCsv",
-                    "--model", pojoname, "--input", in_csv, "--output", out_pojo_csv, "--separator", separator]
-        if setInvNumNA:
+                        "-XX:ReservedCodeCacheSize=256m", "hex.genmodel.tools.PredictCsv",
+                        "--model", pojoname, "--input", in_csv, "--output", out_pojo_csv, "--separator", separator]
+
+    if setInvNumNA:
             java_cmd.append("--setConvertInvalidNum")
-        p = subprocess.Popen(java_cmd, stdout=PIPE, stderr=STDOUT)
-        o, e = p.communicate()
-        print("Java output: {0}".format(o))
-        assert os.path.exists(out_pojo_csv), "Expected file {0} to exist, but it does not.".format(out_pojo_csv)
-        predictions2 = h2o.upload_file(path=out_pojo_csv)
-        print("Pojo predictions saved in {0}".format(out_pojo_csv))
+    if not(pojo_model):
+        java_cmd.append("--mojo")
+        java_cmd.append(os.path.join(tmpdir, pojoname)+".zip")
+    p = subprocess.Popen(java_cmd, stdout=PIPE, stderr=STDOUT)
+    o, e = p.communicate()
+    print("Java output: {0}".format(o))
+    assert os.path.exists(out_pojo_csv), "Expected file {0} to exist, but it does not.".format(out_pojo_csv)
+    predictions2 = h2o.upload_file(path=out_pojo_csv)
+    print("Pojo predictions saved in {0}".format(out_pojo_csv))
 
-        print("Comparing predictions between H2O and Java POJO")
-        # Dimensions
-        hr, hc = predictions.dim
-        pr, pc = predictions2.dim
-        assert hr == pr, "Expected the same number of rows, but got {0} and {1}".format(hr, pr)
-        assert hc == pc, "Expected the same number of cols, but got {0} and {1}".format(hc, pc)
+    print("Comparing predictions between H2O and Java POJO")
+    # Dimensions
+    hr, hc = predictions.dim
+    pr, pc = predictions2.dim
+    assert hr == pr, "Expected the same number of rows, but got {0} and {1}".format(hr, pr)
+    assert hc == pc, "Expected the same number of cols, but got {0} and {1}".format(hc, pc)
 
-        # Value
-        for r in range(hr):
-            hp = predictions[r, 0]
-            if equality == "numeric":
-                pp = float.fromhex(predictions2[r, 0])
-                assert abs(hp - pp) < 1e-4, \
-                    "Expected predictions to be the same (within 1e-4) for row %d, but got %r and %r" % (r, hp, pp)
-            elif equality == "class":
-                pp = predictions2[r, 0]
-                assert hp == pp, "Expected predictions to be the same for row %d, but got %r and %r" % (r, hp, pp)
-            else:
-                raise ValueError
+    # Value
+    for r in range(hr):
+        hp = predictions[r, 0]
+        if equality == "numeric":
+            pp = float.fromhex(predictions2[r, 0])
+            assert abs(hp - pp) < 1e-4, \
+                "Expected predictions to be the same (within 1e-4) for row %d, but got %r and %r" % (r, hp, pp)
+        elif equality == "class":
+            pp = predictions2[r, 0]
+            assert hp == pp, "Expected predictions to be the same for row %d, but got %r and %r" % (r, hp, pp)
+        else:
+            raise ValueError
 
 def javamunge(assembly, pojoname, test, compile_only=False):
     """
